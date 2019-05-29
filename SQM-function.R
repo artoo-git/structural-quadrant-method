@@ -60,9 +60,11 @@ SQM <- function (x, min= "" , max = "", trim = 4, PCA.f= "spectral"){
   rows<-dim(X)[1]
   cols<-dim(X)[2]
 
-
-  ################################### SIMILARITY MATRICES (Botella-Gallifa 2000)
-  
+  ####################################################################
+  ########### SIMILARITY MATRICES (Botella-Gallifa 2000)
+  ####################################################################
+  # THIS SECTION SHOULD BE SOUND
+  #
   # Given a N construct x M elements grid G: this extracts N similarity 
   # matrices S, one for each element, and constituted as N construct x 
   # (M-1) elements. Therefore, the matrix Sj for the element Ej is obtained 
@@ -91,32 +93,42 @@ SQM <- function (x, min= "" , max = "", trim = 4, PCA.f= "spectral"){
   }
 
 
-  ################### INTEGRATION AND DIFFERENTIATION
-
+  ########################################################################
+  ######### INTEGRATION AND DIFFERENTIATION INDEXES
+  ########################################################################
   
-  ### create integration and differentiation summary tables
+  ### create empty integration and differentiation summary tables
+
   int<-matrix(0, nrow=rows, ncol=cols)
   dimnames(int) <- list(rownames(X),colnames(X))
   dif<-matrix(0, nrow=rows, ncol=cols)
   dimnames(dif) <- list(rownames(X),colnames(X))
   
   index<-length(sim)
-  # Each similarity matrix Sj is now submitted to principal component analysis.
+
+  # Each similarity matrix Sj in the array is now submitted to principal 
+  # component analysis.
+  
   for (s in seq(index)){
+  
     # Selecting an element's similarity matrix in the list
+  
     m<-as.matrix(sim[[s]])
-    
+
+
+    # BOTH THE CHOICES BELOW AND THE CONFIGURATION OF EACH PCA METHOD ARE "SKETCHY" 
+    # .. In fact some aspects I don't think make much sense they way they are described in the paper. 
+    #
 
   if(PCA.f=="singular" | is.na(PCA.f)){ 
-    
+
     ############################################################################################
-    ############## METHOD 1 USING SINGULAR VALUE DECOMPOSITION VIA prcomp()   ##################
+    ############## METHOD 1 USING SINGULAR VALUE DECOMPOSITION VIA prcomp() 
     ############################################################################################
     # EXPERIMENTAL: Gallifa says that they did factor analysed the raw similarity matrices     
     # and not the respective correlation matrices. So I have tried use prcomp() with the raw   
     # similarity matrices                                                                      
-    # normalize matrix row-wise 
-
+    
     # from "Principal Component Analysis in r:  an examination of the different functions and 
     # methods to perform PCA. Gregory B. Anderson:
     #
@@ -132,7 +144,7 @@ SQM <- function (x, min= "" , max = "", trim = 4, PCA.f= "spectral"){
     # scaled [default=FALSE]), tol(an argument to indicate that the magnitude below the provided 
     # value for components should be omitted), and newdata (an optional dataset to predict into).>>
 
-    #m <- normalize(m,normalize = 1)                                                                                                                     
+    #m <- normalize(m,normalize = 1)  # I don't think this is needed                                                                                                               
     # transpose similarity so that it is factoranalysed using constructs as variables          
     m<- t(m)
     #  
@@ -152,7 +164,7 @@ SQM <- function (x, min= "" , max = "", trim = 4, PCA.f= "spectral"){
   } else if (PCA.f=="spectral"){
 
     ############################################################################################
-    ################ METHOD 2 USING EIGEN SPECTRAL DECOMPOSITION ###############################
+    ################ METHOD 2 USING EIGEN SPECTRAL DECOMPOSITION
     ############################################################################################
     # 
     # from "Principal Component Analysis in r:  an examination of the different functions and 
@@ -186,7 +198,12 @@ SQM <- function (x, min= "" , max = "", trim = 4, PCA.f= "spectral"){
     ############################################################################################
   }  else{stop("\nthe PCA function selected is not recognised. quitting..")}
 
+  ############################################################################################
+  ################ WRAPPING UP RESULTS AND BUILDING TABLES 
+  ############################################################################################
     
+  # THIS SHOULD BE SOUND AS WELL (provided the pca is fine as it is)
+
     #calculate percentage accunted by first and second factor 
     pvaff<-100*evalues[1]/sum(evalues)
     pvasf<-100*evalues[2]/sum(evalues)
@@ -206,14 +223,23 @@ SQM <- function (x, min= "" , max = "", trim = 4, PCA.f= "spectral"){
   }
   
   
-  #########################  Need to write this part ################################
+  #########################  This part is rather Sketchy and curious ################################
   # from Botella & Gallifa ( 2000): "Factor analyses do not indicate which pole of  #
   # ci is applied to ej [..] We consider that the same pole of ci is being applied  #
   # to ej and ek in G when |g ij – g ik | <= 1                                      #
   #                                                                                 #
-  # (.. this I still need to write.... abs(X[n,e]-X[n,m])<=1) ...                   #
+  # (.. this I still need to write.... abs(X[n,e]-X[n,m])<=1) ...  
+  #
+  # However .. I cannot really make sense of this passage... the signs of the loading
+  # on components extracted only indicate their orthogonality relatively to the matrices
+  # analysed and they don't have any other mathematical "meaning".
+  #
   ###################################################################################
   
+  ############################################################################################
+  ################ PRINTING OFF 
+  ############################################################################################
+    # 
   # N of differentiated elements (Del) and constructs (Dco)
   Del<-length(unique(which(dif < 0, arr.ind = TRUE)[,2]))
   Dco<-length(unique(which(dif < 0, arr.ind = TRUE)[,1]))
@@ -230,17 +256,17 @@ SQM <- function (x, min= "" , max = "", trim = 4, PCA.f= "spectral"){
              "Differentiation index" = indexDiff, "Differentiation summary" = dif)
   
   #########################################################################
-  # Discussion                                                            #
-  #                                                                       #
-  # the summaries report all the respective diff and int weights          # 
-  # but I am not sure they are right.. specially because the Authors      #
+  # Discussion                                                            
+  #                                                                       
+  # the summaries report all the respective diff and int weights           
+  # but I am not sure they are right.. specially because the Authors      
   # are extracting weights ne+2 whereas I am getting all weight below 100
   #
-  # HOWEVER: using the second method (currently default) and so extracting
-  # the factors applying principal component analysis directly on the 
-  # transposed similarity matrices I seem to extract (almost) matching 
-  # factors to those on the paper. 
-  #                                                                       #
+  # HOWEVER: using spectral value decomposition and so extracting
+  # the components with PCA directly on the 
+  # transposed similarity matrices seem to yield  results similar to the
+  # but I need to review the methods for PCA and ensure they make sense as
+  # they are                                                               
   #########################################################################
   
   return(res)
