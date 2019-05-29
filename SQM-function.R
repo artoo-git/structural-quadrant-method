@@ -1,4 +1,4 @@
-  ################################################################
+################################################################
 
 # Structural Quadrant Method
 #
@@ -20,15 +20,69 @@
 
 #################################################################
 
+# internal workhorse for SQM
+#
+# @param x               \code{repgrid} object.
+# @param min             Minimum score should be define a priori (e.g for a range 1-7 
+#                        min = 1). If not given the min is estimated on the basis of 
+#                        the grid scoring (not recommended).
+# @param max             Maximum score should be define a priori (e.g for a range 1-7 
+#                        max = 7). If not given the max is estimated on the basis of 
+#                        the grid scoring (not recommended).
+# @param PCA.f           With \code{PCA.f="eigen"} SQM will call the function
+#                        eigen() for spectral value decomposition. with \code{PCA.f="prcom"}
+#                        for singular value decomposition (default)
+# @param rotate          
+
+# @param nfactors        Is used if \code{diff.mode=1}. Maximal difference between
+#                        element ratings to define construct as congruent (default
+#                        \code{diff.congruent=1}). Note that the value
+#                        needs to be adjusted by the user according to the rating scale
+#                        used.
+# @param diff.discrepant Is used if \code{diff.mode=1}. Minimal difference between
+#                        element ratings to define construct as discrepant (default
+#                        \code{diff.discrepant=4}). Note that the value
+#                        needs to be adjusted by the user according to the rating scale
+#                        used.
+# @param diff.poles      Not yet implemented.
+# @param r.min           Minimal correlation to determine implications between
+#                        constructs.
+# @param exclude         Whether to exclude the elements self and ideal self 
+#                        during the calculation of the inter-construct correlations.
+#                        (default is \code{FALSE}).
+# @param index           Whether to print index numbers in front of each construct 
+#                        (default is \code{TRUE}).
+# @param trim            The number of characters a construct (element) is trimmed to (default is
+#                        \code{20}). If \code{NA} no trimming is done. Trimming
+#                        simply saves space when displaying the output.
+# @param digits          Numeric. Number of digits to round to (default is 
+#                        \code{2}).
+# @author                Mark Heckmann
+# @export
+# @keywords internal
+# @return                A list with four elements containing different steps of the 
+#                        calculation.
+#
+
 # The function here still has some defaults like rotate or nfactors 
 # which I had put there for use with principal() (psych package). 
 # They are unused with svd(), prcomp() or eigen()
 #
 # 
 
-SQM <- function (x, min= "" , max = "", trim = 4, rotate = "none", nfactors = 2){
+SQM <- function (x, min= "" , max = "", trim = 4, nfactors = 2, PCA.f= "prcom"){
 
   X<-getRatingLayer(x, trim = trim)
+  
+  sc <- getScale(x)
+  if (is.na(min)){
+    min <- floor(sc)
+    cat("\nMinimum score not given. Estimated min based on grid scoring =", min)
+  }
+  if (is.na(max)){
+    max <-  ceiling(sc)
+    cat("\nMaximun score not given. Estimated Max based on grid scoring =", max)
+  }
   # calculate k as being the similarity parameter ( from Botella-Gallifa (2000) paper)
   k<- max-min
   # define number of rows and cols of the given n X m repertory grid
@@ -81,67 +135,86 @@ SQM <- function (x, min= "" , max = "", trim = 4, rotate = "none", nfactors = 2)
     # Selecting an element's similarity matrix in the list
     m<-as.matrix(sim[[s]])
     
-    ############################################################################################
-    ################ METHOD 1 USING EIGEN SPECTRAL DECOMPOSITION ###############################
-    ############################################################################################
-    #                                                                                          #
-    # normalise similarity matrix. we need to do this if we are using the function principal().#
-    # Principal() relies on eigen() which (I think) requires a normalised square symmetric     #
-    # matrix:                                                                                  #
-    # normalize() with option "1" normalise the matrix row-wise                                #
-    #m <- normalize(m,normalize = 1)                                                           #
-    #                                                                                          #
-    # calculate correlation matrix of the transposed similarity matrix (we want the constructs)#
-    # ( this is also necessary to avoid error due the similarity matrix being singular)         #
-    #r<- cor(t(m))                                                                             #
-    #                                                                                          #
-    #                                                                                          #
-    # Extracts factors for each similarity matrix Sj , and compute factor                      #
-    # loadings for each construct c i:                                                         #
-    #                                                                                          #
-    # res<-principal(r, rotate = rotate, nfactors = nfactors)
-    #                                                                                          #
-    # ..extract loadings                                                                       #
-    # loadings<- res$loadings[,1:2]   
-    #                                                                                          #
-    # ..extract eigenvalues                                                                    #
-    # evalues<- res$values
-    #                                                                                          #
-    # *Or* we can use the standard eigen() and not principal() wich is a function included     #
-    # in the psych package. The methods are equivalent.                                        #
-    # res<-eigen(r)                                                                            #
-    # loadings<- eigen(r)$vectors %*% sqrt(diag(eigen(r)$values, nrow = length(eigen(r)$values)))#
-    #                                                                                          # 
-    # ..and now eigenvalues. from eigen() are already eigenvalues and same is for principal()  #
-    # evalues<- res$values                                                                     #
-    #                                                                                          #
-    ############################################################################################
-    ############################################################################################
-    
+
+  if(PCA.f=="prcom" | is.na(PCA.f)){ 
     
     ############################################################################################
-    ############## METHOD 2 USING prcom() OR svd() ON RAW SIMILARITY MATRICES ##################
+    ############## METHOD 1 USING SINGULAR VALUE DECOMPOSITION VIA prcomp()   ##################
     ############################################################################################
-    # EXPERIMENTAL: Gallifa says that they did factor analysed the raw similarity matrices     #
-    # and not the respective correlation matrices. So I have tried use prcomp() with the raw   #
-    # similarity matrices                                                                      #
+    # EXPERIMENTAL: Gallifa says that they did factor analysed the raw similarity matrices     
+    # and not the respective correlation matrices. So I have tried use prcomp() with the raw   
+    # similarity matrices                                                                      
     # normalize matrix row-wise 
-    #                                                                                          #
-    #m <- normalize(m,normalize = 1)                                                            #                                                          
-    # transpose similarity so that it is factoranalysed using constructs as variables          #
+
+    # from "Principal Component Analysis in r:  an examination of the different functions and 
+    # methods to perform PCA. Gregory B. Anderson:
+    #
+    # << The function prcomp() performs a principal component analysis using singular value decomposition 
+    # of the data matrix.  Unlike the svd function, the data matrix does not need to be centered or 
+    # scaled prior to analysis because these options can be specified as arguments in the prcomp 
+    # command.  The arguments of the function include: formula (e.g., ~X1+X2), data(optional data 
+    # rame containing the variables), subset (an optional vector used to select particular rows 
+    # of the data matrix), na.action (a function to indicate how missing values should be treated), 
+    # x (a matrix or dataframe to be used), retx(a logical statement to determine if the rotated 
+    # variables should be returned), center (a logical statement to indicate that the data should
+    # be centered at zero), scale (a logical statement to indicate  that the data should be 
+    # scaled [default=FALSE]), tol(an argument to indicate that the magnitude below the provided 
+    # value for components should be omitted), and newdata (an optional dataset to predict into).>>
+
+    #m <- normalize(m,normalize = 1)                                                                                                                     
+    # transpose similarity so that it is factoranalysed using constructs as variables          
     m<- t(m)
-    #                                                                                          #
-    res<-prcomp(m, center = T, scale. = F)                                                     #
-    #                                                                                          #
-    # get loadings                                                                             #
+    #  
+    # center: (the column means of the original data used to center each variable) 
+    # scale:  (the original variance of each column used to scale each variable)                                                                                      #
+    res<-prcomp(m, center = T, scale. = F)                                                     
+    #                                                                                          
+    # get loadings                                                                             
     loadings<-as.matrix(res$rotation)
-    #                                                                                          #
-    # calculate eigenvalues from sigma values                                                  #
+    #                                                                                          
+    # calculate eigenvalues from sigma values                                                  
     evalues<-res$sdev^2
     #
     ############################################################################################
     ############################################################################################
-    
+  
+  } else if (PCA.f=="eigen"){
+
+    ############################################################################################
+    ################ METHOD 2 USING EIGEN SPECTRAL DECOMPOSITION ###############################
+    ############################################################################################
+    # 
+    # from "Principal Component Analysis in r:  an examination of the different functions and 
+    # methods to perform PCA. Gregory B. Anderson:
+    #
+    # << eigen() computes eigenvalues and eigenvectors using spectral decomposition of real or 
+    # complex matrices.  The arguments for the function are as follows: 
+    #    - X (a matrix to be used 
+    #        [for PCA we specify either the correlation matrix or the covariance matrix])
+    #    - symmetric (a logical argument; if TRUE the matrix is assumed to be symmetric 
+    #        [if not specified, the matrix will be inspected for symmetry])
+    #    - only.values (a logical argument; if TRUE only the eigenvalues are computed and returned). >>
+
+    # We work on the similarity matrix:
+
+    # we transpose similarity so that it is analysed using constructs as variables                                 #
+    m<- t(m)                                                                                   
+    #                                                                                          
+    # calculate correlation matrix of the transposed similarity matrix (we want the constructs)
+    # ( this is also necessary to avoid error due the similarity matrix being singular)         
+    r<- cor(m)                                                                             
+    #                                                                                          
+    #                                                                                          
+    res<-eigen(r)                                                                            
+    loadings<- eigen(r)$vectors %*% sqrt(diag(eigen(r)$values, nrow = length(eigen(r)$values)))
+    #                                                                                           
+    # ..and now eigenvalues. from eigen() are already eigenvalues and same is for principal()  
+    evalues<- res$values                                                                     
+    #                                                                                          
+    ############################################################################################
+    ############################################################################################
+  }  else{stop("\nthe PCA function selected is not recognised. quitting..")}
+
     
     #calculate percentage accunted by first and second factor 
     pvaff<-100*evalues[1]/sum(evalues)
