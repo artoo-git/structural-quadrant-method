@@ -29,48 +29,19 @@
 # @param max             Maximum score should be define a priori (e.g for a range 1-7 
 #                        max = 7). If not given the max is estimated on the basis of 
 #                        the grid scoring (not recommended).
-# @param PCA.f           With \code{PCA.f="eigen"} SQM will call the function
-#                        eigen() for spectral value decomposition. with \code{PCA.f="prcom"}
-#                        for singular value decomposition (default)
-# @param rotate          
-
-# @param nfactors        Is used if \code{diff.mode=1}. Maximal difference between
-#                        element ratings to define construct as congruent (default
-#                        \code{diff.congruent=1}). Note that the value
-#                        needs to be adjusted by the user according to the rating scale
-#                        used.
-# @param diff.discrepant Is used if \code{diff.mode=1}. Minimal difference between
-#                        element ratings to define construct as discrepant (default
-#                        \code{diff.discrepant=4}). Note that the value
-#                        needs to be adjusted by the user according to the rating scale
-#                        used.
-# @param diff.poles      Not yet implemented.
-# @param r.min           Minimal correlation to determine implications between
-#                        constructs.
-# @param exclude         Whether to exclude the elements self and ideal self 
-#                        during the calculation of the inter-construct correlations.
-#                        (default is \code{FALSE}).
-# @param index           Whether to print index numbers in front of each construct 
-#                        (default is \code{TRUE}).
+# @param PCA.f           With \code{PCA.f="spectral"} SQM will call the function
+#                        eigen() for spectral value decomposition. With \code{PCA.f="singular"}
+#                        SQM will call the function prcomp() for singular value decomposition
 # @param trim            The number of characters a construct (element) is trimmed to (default is
-#                        \code{20}). If \code{NA} no trimming is done. Trimming
-#                        simply saves space when displaying the output.
-# @param digits          Numeric. Number of digits to round to (default is 
-#                        \code{2}).
-# @author                Mark Heckmann
+# @author                Diego Vitali
 # @export
 # @keywords internal
 # @return                A list with four elements containing different steps of the 
 #                        calculation.
 #
-
-# The function here still has some defaults like rotate or nfactors 
-# which I had put there for use with principal() (psych package). 
-# They are unused with svd(), prcomp() or eigen()
-#
 # 
 
-SQM <- function (x, min= "" , max = "", trim = 4, nfactors = 2, PCA.f= "prcom"){
+SQM <- function (x, min= "" , max = "", trim = 4, PCA.f= "spectral"){
 
   X<-getRatingLayer(x, trim = trim)
   
@@ -136,7 +107,7 @@ SQM <- function (x, min= "" , max = "", trim = 4, nfactors = 2, PCA.f= "prcom"){
     m<-as.matrix(sim[[s]])
     
 
-  if(PCA.f=="prcom" | is.na(PCA.f)){ 
+  if(PCA.f=="singular" | is.na(PCA.f)){ 
     
     ############################################################################################
     ############## METHOD 1 USING SINGULAR VALUE DECOMPOSITION VIA prcomp()   ##################
@@ -178,7 +149,7 @@ SQM <- function (x, min= "" , max = "", trim = 4, nfactors = 2, PCA.f= "prcom"){
     ############################################################################################
     ############################################################################################
   
-  } else if (PCA.f=="eigen"){
+  } else if (PCA.f=="spectral"){
 
     ############################################################################################
     ################ METHOD 2 USING EIGEN SPECTRAL DECOMPOSITION ###############################
