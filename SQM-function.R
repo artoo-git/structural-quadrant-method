@@ -41,16 +41,17 @@
 #
 # 
 
-SQM <- function (x, min= "" , max = "", trim = 4, PCA.f= "spectral"){
-
+SQM <- function (x, min= "" , max = "", trim = 4, PCA.m = "singular"){
+  
   X<-getRatingLayer(x, trim = trim)
   
   sc <- getScale(x)
-  if (is.na(min)){
+  
+  if (is.null(min)){
     min <- floor(sc)
     cat("\nMinimum score not given. Estimated min based on grid scoring =", min)
   }
-  if (is.na(max)){
+  if (is.null(max)){
     max <-  ceiling(sc)
     cat("\nMaximun score not given. Estimated Max based on grid scoring =", max)
   }
@@ -71,10 +72,10 @@ SQM <- function (x, min= "" , max = "", trim = 4, PCA.f= "spectral"){
   # by calculating the scoring similarity between Ej and every other element 
   # in every construct in G. 
   #
-  #     sijk = r – |g ij – g ik | 
+  #     s_ijk = r - |g_ij - g_ik | 
   #
   # r = max-min scoring 
-  # gij = scoring of the element j - scoring of the element k in the construct i
+  # g_ij = scoring of the element j - scoring of the element k in the construct i
   
   # the "result" variable is a matrix that will store the calculated similarity 
   # matrix in the for loop
@@ -118,9 +119,28 @@ SQM <- function (x, min= "" , max = "", trim = 4, PCA.f= "spectral"){
 
     # BOTH THE CHOICES BELOW AND THE CONFIGURATION OF EACH PCA METHOD ARE "SKETCHY" 
     # .. In fact some aspects I don't think make much sense they way they are described in the paper. 
+    
+    # (cf. p. 10-11, Gallifa & Botella 2000)
+    # << Each similarity matrix is now submitted to factor analysis. Among all possible algorithms 
+    #    that extract the matrix factors, we used the one by H orst (1965, section 12.5, pp. 624–625), 
+    #    which is also the one used by Bell (1987) in his computer program for the analysis of repertory 
+    #    grids G-Pack (version 3.0) >>
+    #
+    #    please note that both methods mentioned by the authors are are eigen value decomposition (PCA).
+    #
+    # << We extract two factors for each similarity matrix s_j , and compute factor loadings 
+    #    for each construct c_i . Factor loadings for every c_i indicate the level of similarity 
+    #    between the scorings of e_j and the rest of elements in G (standard rep. grid) considered 
+    #    as a whole. Positive factor loadings indicate that the scoring of e_j in c_i is similar 
+    #    to the scoring of all the other elements in c_i . In this case, the use of c_i when rating 
+    #    e_j is very similar to its use when rating all the other elements in G. (Note, however, 
+    #    that factor analyses do not indicate which pole of c_i is applied to e_j ; this information 
+    #    needs to be obtained from the original ratings in G, as we will discuss later in more detail). 
+    #    Negative factor loadings indicate that the scoring of e_j in c_i is dissimilar to the scoring 
+    #    of all the other elements in c_i>>
     #
 
-  if(PCA.f=="singular" | is.na(PCA.f)){ 
+  if(PCA.m =="singular" | is.na(PCA.m)){ 
 
     ############################################################################################
     ############## METHOD 1 USING SINGULAR VALUE DECOMPOSITION VIA prcomp() 
@@ -145,23 +165,37 @@ SQM <- function (x, min= "" , max = "", trim = 4, PCA.f= "spectral"){
     # value for components should be omitted), and newdata (an optional dataset to predict into).>>
 
     #m <- normalize(m,normalize = 1)  # I don't think this is needed                                                                                                               
-    # transpose similarity so that it is factoranalysed using constructs as variables          
+    
+    # transpose similarity so that it is submitted to PCA using constructs as variables
     m<- t(m)
+    # calculate correlation matrix of the transposed similarity matrix (we want the constructs)
     #  
     # center: (the column means of the original data used to center each variable) 
-    # scale:  (the original variance of each column used to scale each variable)                                                                                      #
+    # scale:  (the original variance of each column used to scale each variable)
+    
     res<-prcomp(m, center = T, scale. = F)                                                     
-    #                                                                                          
-    # get loadings                                                                             
-    loadings<-as.matrix(res$rotation)
-    #                                                                                          
+    #
     # calculate eigenvalues from sigma values                                                  
     evalues<-res$sdev^2
+    # pull eigenvectors 
+    evectors<-as.matrix(res$rotation)
+    #
+    # Now, Loadings should be attained by: Eigenvectors * sqrt(Eigenvalues), but it maybe the case that
+    # here Gallifa and botella only meant just the coeficient of the transformation (vectors)
+    #
+    # -------> Which one doe we use? <----------
+    #
+    # actual loadings:
+    #loadings<- evectors %*% sqrt(diag(evalues, nrow = length(evalues)))
+    #
+    # or eigenvectors?                                                                          
+    loadings<-evectors
+    #       
     #
     ############################################################################################
     ############################################################################################
   
-  } else if (PCA.f=="spectral"){
+  } else if (PCA.m=="spectral"){
 
     ############################################################################################
     ################ METHOD 2 USING EIGEN SPECTRAL DECOMPOSITION
@@ -184,19 +218,32 @@ SQM <- function (x, min= "" , max = "", trim = 4, PCA.f= "spectral"){
     m<- t(m)                                                                                   
     #                                                                                          
     # calculate correlation matrix of the transposed similarity matrix (we want the constructs)
-    # ( this is also necessary to avoid error due the similarity matrix being singular)         
-    r<- cor(m)                                                                             
+    r<- cor(m)
     #                                                                                          
-    #                                                                                          
-    res<-eigen(r)                                                                            
-    loadings<- eigen(r)$vectors %*% sqrt(diag(eigen(r)$values, nrow = length(eigen(r)$values)))
-    #                                                                                           
-    # ..and now eigenvalues. from eigen() are already eigenvalues and same is for principal()  
-    evalues<- res$values                                                                     
-    #                                                                                          
+    #
+    # calculate eigenvalues.   
+    evalues<- eigen(r)$values
+    
+    # calculate eigenvectors. 
+    evectors<- eigen(r)$vectors                                                                   
+    #                           
+    #                           
+    # Now, Loadings should be attained by: Eigenvectors * sqrt(Eigenvalues), but it maybe the case that
+    # here Gallifa and botella only meant just the coeficient of the transformation (vectors)
+    #
+    # -------> Which one doe we use? <----------
+    #
+    # actual loadings:
+    # loadings<- evectors %*% sqrt(diag(evalues, nrow = length(evalues)))
+    #
+    # or eigenvectors ?
+    loadings<-evectors
+    #                                                                              
     ############################################################################################
     ############################################################################################
-  }  else{stop("\nthe PCA function selected is not recognised. quitting..")}
+    
+  }  else{stop(" The PCA function selected is not recognised. Please use 'singular' for singular value
+          decomposition or 'spectral' for spectral value decomposition. quitting..")}
 
   ############################################################################################
   ################ WRAPPING UP RESULTS AND BUILDING TABLES 
@@ -204,10 +251,11 @@ SQM <- function (x, min= "" , max = "", trim = 4, PCA.f= "spectral"){
     
   # THIS SHOULD BE SOUND AS WELL (provided the pca is fine as it is)
 
-    #calculate percentage accunted by first and second factor 
-    pvaff<-100*evalues[1]/sum(evalues)
-    pvasf<-100*evalues[2]/sum(evalues)
-    
+    #calculate percentage accunted by first and second factor
+   
+      pvaff<-100*evalues[1]/sum(evalues)
+      pvasf<-100*evalues[2]/sum(evalues)
+   
     # Prepare the for loop and fill the differentiation and integration summaries
     l<-length(loadings[,1])
     for (n in seq(l)){
