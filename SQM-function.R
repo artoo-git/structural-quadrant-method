@@ -168,15 +168,14 @@ SQM <- function (x, min= "" , max = "", trim = 4, PCA.m = "singular"){
     
     # transpose similarity so that it is submitted to PCA using constructs as variables
     m<- t(m)
-    # calculate correlation matrix of the transposed similarity matrix (we want the constructs)
-    #  
+    m<-cor(m)
     # center: (the column means of the original data used to center each variable) 
     # scale:  (the original variance of each column used to scale each variable)
     
     res<-prcomp(m, center = T, scale. = F)                                                     
     #
     # calculate eigenvalues from sigma values                                                  
-    evalues<-res$sdev^2
+    evalues<-res$sdev * res$sdev
     # pull eigenvectors 
     evectors<-as.matrix(res$rotation)
     #
@@ -242,7 +241,26 @@ SQM <- function (x, min= "" , max = "", trim = 4, PCA.m = "singular"){
     ############################################################################################
     ############################################################################################
     
-  }  else{stop(" The PCA function selected is not recognised. Please use 'singular' for singular value
+  }  else if (PCA.m == "EFA"){
+    #
+    ############################################################################################
+    ################ METHOD 3 USING FACTOR ANALYSIS  (discouraged)
+    ############################################################################################
+    #
+    # I do not think this is the kind of analysis that gallifa and botella meant this method should
+    # be removed
+    library("psych")
+    # we transpose similarity so that it is analysed using constructs as variables                                 #
+    m<- t(m)
+    #
+    res<-fa(r = cor(m), nfactors = 2)
+    loadings<-res$loadings
+    #
+    ############################################################################################
+    ############################################################################################
+    
+    
+  }else{stop(" The PCA function selected is not recognised. Please use 'singular' for singular value
           decomposition or 'spectral' for spectral value decomposition. quitting..")}
 
   ############################################################################################
@@ -251,11 +269,16 @@ SQM <- function (x, min= "" , max = "", trim = 4, PCA.m = "singular"){
     
   # THIS SHOULD BE SOUND AS WELL (provided the pca is fine as it is)
 
-    #calculate percentage accunted by first and second factor
-   
+    #calculate percentage accunted by first and second factor 
+    # This is only different if Exploratory factor analysis is used 
+    if (PCA.m == "EFA"){
+      pvaff<-res$Vaccounted[4,1]
+      pvasf<-res$Vaccounted[4,2]
+       
+    }else{
       pvaff<-100*evalues[1]/sum(evalues)
       pvasf<-100*evalues[2]/sum(evalues)
-   
+    }
     # Prepare the for loop and fill the differentiation and integration summaries
     l<-length(loadings[,1])
     for (n in seq(l)){
@@ -300,8 +323,8 @@ SQM <- function (x, min= "" , max = "", trim = 4, PCA.m = "singular"){
   indexInt<- Iel/cols * Ico/rows
   indexDiff<- Del/cols * Dco/rows
   
-  res<- list("Integration index" = indexInt, "Integration summary" = int, 
-             "Differentiation index" = indexDiff, "Differentiation summary" = dif)
+  res<- list("Differentiation index" = indexDiff, "Differentiation summary" = dif,
+             "Integration index" = indexInt, "Integration summary" = int)
   
   #########################################################################
   # Discussion                                                            
