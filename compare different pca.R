@@ -10,7 +10,7 @@ sim<-function(n.var=5,n.obs=1000,n.reps=1000){
       X<-rmvnorm(n=n.obs,mean=mu,sigma=R)
       return(X)
     }
-    data<-rPCA(n.var=n.var,n.obs=n.obs)
+    data<-rPCA(n.var=10,n.obs=30)
     ##################################
     #Create Objects from PCA analysis
     ##################################

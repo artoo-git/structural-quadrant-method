@@ -168,11 +168,15 @@ SQM <- function (x, min= "" , max = "", trim = 4, PCA.m = "singular"){
     
     # transpose similarity so that it is submitted to PCA using constructs as variables
     m<- t(m)
-    m<-cor(m)
+    # Gallifa says they did not use the correlation matrix and just submitted to factor analysis
+    # the raw scores from the similarity matrices. Next row is commented
+    #m<-cor(m)
+    
+    
+    res<-prcomp(m, center = T, scale. = F)                                                     
     # center: (the column means of the original data used to center each variable) 
     # scale:  (the original variance of each column used to scale each variable)
     
-    res<-prcomp(m, center = T, scale. = F)                                                     
     #
     # calculate eigenvalues from sigma values                                                  
     evalues<-res$sdev * res$sdev
@@ -217,14 +221,17 @@ SQM <- function (x, min= "" , max = "", trim = 4, PCA.m = "singular"){
     m<- t(m)                                                                                   
     #                                                                                          
     # calculate correlation matrix of the transposed similarity matrix (we want the constructs)
-    r<- cor(m)
+    # Gallifa says they did not use the correlation matrix and just submitted to factor analysis
+    # the raw scores from the similarity matrices. Next row is commented
+    #
+    m<- cor(m)
     #                                                                                          
     #
     # calculate eigenvalues.   
-    evalues<- eigen(r)$values
+    evalues<- eigen(m)$values
     
     # calculate eigenvectors. 
-    evectors<- eigen(r)$vectors                                                                   
+    evectors<- eigen(m)$vectors                                                                   
     #                           
     #                           
     # Now, Loadings should be attained by: Eigenvectors * sqrt(Eigenvalues), but it maybe the case that
@@ -233,7 +240,7 @@ SQM <- function (x, min= "" , max = "", trim = 4, PCA.m = "singular"){
     # -------> Which one doe we use? <----------
     #
     # actual loadings:
-    # loadings<- evectors %*% sqrt(diag(evalues, nrow = length(evalues)))
+    #loadings<- evectors %*% sqrt(diag(evalues, nrow = length(evalues)))
     #
     # or eigenvectors ?
     loadings<-evectors
@@ -249,11 +256,11 @@ SQM <- function (x, min= "" , max = "", trim = 4, PCA.m = "singular"){
     #
     # I do not think this is the kind of analysis that gallifa and botella meant this method should
     # be removed
-    library("psych")
+    #library("psych")
     # we transpose similarity so that it is analysed using constructs as variables                                 #
     m<- t(m)
-    #
-    res<-fa(r = cor(m), nfactors = 2)
+    #m = cor(m)# or should it be a covariance 
+    res<-factanal(x = cor(m), factors = 2, rotation = "none")
     loadings<-res$loadings
     #
     ############################################################################################
@@ -272,9 +279,8 @@ SQM <- function (x, min= "" , max = "", trim = 4, PCA.m = "singular"){
     #calculate percentage accunted by first and second factor 
     # This is only different if Exploratory factor analysis is used 
     if (PCA.m == "EFA"){
-      pvaff<-res$Vaccounted[4,1]
-      pvasf<-res$Vaccounted[4,2]
-       
+      pvaff<-mean((res$loadings[,1])^2)
+      pvasf<-mean((res1$loadings[,2])^2)
     }else{
       pvaff<-100*evalues[1]/sum(evalues)
       pvasf<-100*evalues[2]/sum(evalues)
